@@ -1,0 +1,44 @@
+
+# AcadAlly Automizer
+
+Automated assistant for AcadAlly quizzes created by Shreyansh Gupta (Discord: aerozer0grinder)
+
+## ⚠️ Important Notice
+You need your own API key! I'm not sharing mine. Follow the steps below to get yours.
+
+## 🚀 Setup Instructions
+
+### 1. Get Your OpenRouter API Key
+1. Go to [OpenRouter](https://openrouter.ai/)
+2. Sign up for a free account
+3. Go to your API Keys section
+4. Create a new API key
+5. Copy your key (starts with `sk-or-`)
+
+### 2. Install Requirements
+```bash
+pip install -r requirements.txt
+3. Download ChromeDriver
+Download from: https://chromedriver.chromium.org/
+
+Make sure it matches your Chrome version
+
+Place it in your system PATH or in the script folder
+
+4. Run the Automizer
+bash
+python acadally_automizer.py
+🎯 How to Use
+Run the script - it will ask for your API key
+
+Enter your OpenRouter API key when prompted
+
+Browser opens automatically and goes to AcadAlly
+
+Manually login to your AcadAlly account
+
+Navigate to your quiz and start it
+
+Get to the first question
+
+Press Enter in the terminal to begin automation

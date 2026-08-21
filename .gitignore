@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+Voice Command/
+conversations/
+remote-profile/
