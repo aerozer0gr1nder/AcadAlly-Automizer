@@ -28,10 +28,10 @@ Place it in your system PATH or in the script folder
 4. Run the Automizer
 bash
 python acadally_automizer.py
-🎯 How to Use
-Run the script - it will ask for your API key
+## 🎯 How to Use
+Scroll through the code to identify the section to put the API key
 
-Enter your OpenRouter API key when prompted
+Paste your API key there and save the code. Make sure it is correct
 
 Browser opens automatically and goes to AcadAlly
 
