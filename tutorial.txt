@@ -1,44 +1,153 @@
+AcadAlly Automizer
 
-# AcadAlly Automizer
+Automated assistant for AcadAlly quizzes created by Shreyansh Gupta
+Discord: aerozer0grinder
 
-Automated assistant for AcadAlly quizzes created by Shreyansh Gupta (Discord: aerozer0grinder)
+NVIDIA NIM VERSION: 2.0
 
-## ⚠️ Important Notice
-You need your own API key! I'm not sharing mine. Follow the steps below to get yours.
+IMPORTANT NOTICE
 
-## 🚀 Setup Instructions
+This version of AcadAlly Automizer uses NVIDIA NIM Version 2.0 for
+AI-powered quiz answering.
 
-### 1. Get Your OpenRouter API Key
-1. Go to [OpenRouter](https://openrouter.ai/)
-2. Sign up for a free account
-3. Go to your API Keys section
-4. Create a new API key
-5. Copy your key (starts with `sk-or-`)
+You need your own NVIDIA NIM API key. The API key is NOT included with
+the project.
 
-### 2. Install Requirements
-```bash
+Do not share your NVIDIA API key publicly.
+
+SETUP INSTRUCTIONS
+
+1. Get Your NVIDIA NIM API Key
+
+1.  Go to:
+
+    https://build.nvidia.com/
+
+2.  Sign in or create an NVIDIA account.
+
+3.  Open the NVIDIA API key section.
+
+4.  Create/copy your NVIDIA API key.
+
+5.  Your key normally starts with:
+
+    nvapi-
+
+IMPORTANT: Use an NVIDIA NIM API key, NOT an OpenRouter API key.
+
+2. Install Requirements
+
+Open Command Prompt or PowerShell in the Automizer folder and run:
+
 pip install -r requirements.txt
+
 3. Download ChromeDriver
-Download from: https://chromedriver.chromium.org/
 
-Make sure it matches your Chrome version
+Download ChromeDriver from:
 
-Place it in your system PATH or in the script folder
+https://chromedriver.chromium.org/
 
-4. Run the Automizer
-bash
+Make sure the ChromeDriver version matches your installed Google Chrome
+version.
+
+Place ChromeDriver either:
+
+-   In your system PATH OR
+-   In the same folder as the Automizer script
+
+4. Configure NVIDIA NIM
+
+The Automizer is configured to use NVIDIA NIM Version 2.0.
+
+Add your own NVIDIA NIM API key where the script asks for/configures:
+
+NVIDIA_API_KEY
+
+IMPORTANT: Never upload or publish your personal NVIDIA API key with the
+project.
+
+5. Run the Automizer
+
+Run:
+
 python acadally_automizer.py
-## 🎯 How to Use
-Scroll through the code to identify the section to put the API key
 
-Paste your API key there and save the code. Make sure it is correct
+HOW TO USE
 
-Browser opens automatically and goes to AcadAlly
+1.  Run the Automizer.
 
-Manually login to your AcadAlly account
+2.  Select the desired mode when prompted: [1] Do One Quiz Only [2]
+    Complete All Available Quizzes
 
-Navigate to your quiz and start it
+3.  The browser opens automatically and goes to AcadAlly.
 
-Get to the first question
+4.  Log in to your AcadAlly account manually if required.
 
-Press Enter in the terminal to begin automation
+5.  If using One Quiz Only mode: Navigate to the quiz you want to
+    complete.
+
+6.  Start the quiz and reach the first question.
+
+7.  Press Enter in the terminal when the browser is ready.
+
+8.  The Automizer uses NVIDIA NIM Version 2.0 to analyze the quiz
+    screenshot and determine the answer.
+
+9.  In Complete All Available Quizzes mode, the Automizer can move
+    between available quizzes and handle the quiz start/resume flow
+    automatically.
+
+NVIDIA NIM VERSION 2.0
+
+AI provider: NVIDIA NIM
+
+Version: 2.0
+
+Multimodal model used by the current Automizer: meta/muse-glimmer-30b
+
+The Automizer sends the question screenshot to NVIDIA NIM and extracts
+the A/B/C/D answer returned by the model.
+
+TROUBLESHOOTING
+
+If the Automizer does not start:
+
+-   Check that your NVIDIA NIM API key is correct.
+-   Make sure the key starts with “nvapi-”.
+-   Make sure all requirements are installed.
+-   Make sure ChromeDriver matches your Chrome version.
+-   Make sure you are logged in to AcadAlly.
+-   Make sure the browser is on the correct quiz/question page.
+
+If NVIDIA NIM returns an error:
+
+-   Check your internet connection.
+-   Check that your NVIDIA API key is valid.
+-   Try again after a short wait if the NVIDIA NIM service is
+    temporarily busy.
+
+SECURITY
+
+Your NVIDIA API key is private.
+
+Do NOT:
+
+-   Post it on GitHub.
+-   Send it in Discord.
+-   Include it in screenshots.
+-   Share it with other people.
+
+If a key is accidentally exposed, revoke it and create a new one.
+
+QUICK START
+
+1.  Get an NVIDIA NIM API key from https://build.nvidia.com/
+2.  Install requirements: pip install -r requirements.txt
+3.  Install the correct ChromeDriver.
+4.  Add your NVIDIA NIM API key.
+5.  Run: python acadally_automizer.py
+6.  Log in to AcadAlly.
+7.  Select a mode.
+8.  Start a quiz if using One Quiz Only mode.
+9.  Press Enter when ready.
+10. Let the Automizer handle the quiz using NVIDIA NIM Version 2.0.

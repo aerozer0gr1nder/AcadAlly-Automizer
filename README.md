@@ -29,7 +29,7 @@
 🔧 Technical Details
 Uses Selenium for browser automation
 
-Integrates with OpenRouter AI API
+Integrates with Nvidia NIM AI Studio API
 
 Supports multiple question formats
 
