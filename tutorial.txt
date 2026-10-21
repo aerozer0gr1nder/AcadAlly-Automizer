@@ -70,32 +70,8 @@ project.
 
 Run:
 
-python acadally_automizer.py
+python gui_app.py
 
-HOW TO USE
-
-1.  Run the Automizer.
-
-2.  Select the desired mode when prompted: [1] Do One Quiz Only [2]
-    Complete All Available Quizzes
-
-3.  The browser opens automatically and goes to AcadAlly.
-
-4.  Log in to your AcadAlly account manually if required.
-
-5.  If using One Quiz Only mode: Navigate to the quiz you want to
-    complete.
-
-6.  Start the quiz and reach the first question.
-
-7.  Press Enter in the terminal when the browser is ready.
-
-8.  The Automizer uses NVIDIA NIM Version 2.0 to analyze the quiz
-    screenshot and determine the answer.
-
-9.  In Complete All Available Quizzes mode, the Automizer can move
-    between available quizzes and handle the quiz start/resume flow
-    automatically.
 
 NVIDIA NIM VERSION 2.0
 

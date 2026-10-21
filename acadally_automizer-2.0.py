@@ -17,12 +17,24 @@ import json
 import sys
 import os
 import traceback
+import configparser
 
 
 class AcadallyBot:
-    def __init__(self, nvidia_api_key):
+    def __init__(self, nvidia_api_key, log_callback=None):
         self.nvidia_api_key = nvidia_api_key
+        self.log_callback = log_callback
         self.driver = None
+        self._last_quest_click_status = "none"
+        self._pending_quest_action = None
+
+    def log(self, message, level="INFO"):
+        """Emit a message to the GUI callback when one is attached,
+        otherwise fall back to plain console output."""
+        if self.log_callback:
+            self.log_callback(message, level)
+        else:
+            print(f"[{level}] {message}")
 
     def bring_browser_to_foreground(self):
         """On Windows: try to bring the Chrome window that Selenium is
@@ -172,21 +184,21 @@ class AcadallyBot:
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         # Open Acadally website
-        print("Opening app.acadally.com...")
+        self.log("Opening app.acadally.com...")
         self.driver.get("https://app.acadally.com")
         return True
     
     def wait_for_user_ready(self):
         """Wait for user to login and start the quiz"""
-        print("\n" + "="*50)
-        print("🤖 ACADALLY BOT READY")
-        print("="*50)
-        print("Please manually:")
-        print("1. Login to your account (if not already logged in)")
-        print("2. Navigate to your quiz")
-        print("3. Start the quiz and get to the first question")
-        print("4. Come back here and press Enter to continue")
-        print("="*50)
+        self.log("\n" + "="*50)
+        self.log("🤖 ACADALLY BOT READY")
+        self.log("="*50)
+        self.log("Please manually:")
+        self.log("1. Login to your account (if not already logged in)")
+        self.log("2. Navigate to your quiz")
+        self.log("3. Start the quiz and get to the first question")
+        self.log("4. Come back here and press Enter to continue")
+        self.log("="*50)
         
         input("Press Enter when you're on the first question...")
         return True
@@ -198,7 +210,7 @@ class AcadallyBot:
         send a loading screen to the AI.
         """
         try:
-            print("   ⏳ Waiting for the question and answer options to finish loading...")
+            self.log("   ⏳ Waiting for the question and answer options to finish loading...")
             end_at = time.time() + 45
             while time.time() < end_at:
                 ready = bool(self.driver.execute_script(
@@ -230,12 +242,12 @@ class AcadallyBot:
                     break
                 time.sleep(0.35)
             else:
-                print("⚠️  Question controls did not finish loading within 45 seconds.")
+                self.log("⚠️  Question controls did not finish loading within 45 seconds.")
                 return None
             screenshot_bytes = self.driver.get_screenshot_as_png()
             return screenshot_bytes
         except Exception as e:
-            print(f"Error taking screenshot: {e}")
+            self.log(f"Error taking screenshot: {e}")
             return None
 
     def _extract_answer_letter(self, answer_text):
@@ -292,11 +304,11 @@ class AcadallyBot:
         """
         try:
             if screenshot_bytes is None:
-                print("❌ No screenshot bytes available")
+                self.log("❌ No screenshot bytes available")
                 return None
 
             screenshot_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
-            print(f"📸 In-memory screenshot captured ({len(screenshot_bytes)} bytes)")
+            self.log(f"📸 In-memory screenshot captured ({len(screenshot_bytes)} bytes)")
 
             strict_prompt = (
                 "You are solving a multiple-choice quiz shown in the attached image. "
@@ -343,7 +355,7 @@ class AcadallyBot:
             max_retries = 4
             backoff_seconds = 3
             _t0 = time.time()
-            print(f"🤖 Calling meta/muse-glimmer-30b (NIM multimodal reasoning)...")
+            self.log(f"🤖 Calling meta/muse-glimmer-30b (NIM multimodal reasoning)...")
             for attempt in range(1, max_retries + 1):
                 try:
                     # Muse Glimmer 30B is a dense 30B reasoning model on free
@@ -369,12 +381,12 @@ class AcadallyBot:
                         _reasoning = msg.get("reasoning", "") or ""
                         finish_reason = choice.get("finish_reason", "(unknown)")
                         usage = result.get("usage") or {}
-                        print(f"   ⏱️  API call took ~{_elapsed:.0f}s (attempt {attempt}/{max_retries}), content_len={len(_content)}, reasoning_len={len(_reasoning)}, finish={finish_reason}")
+                        self.log(f"   ⏱️  API call took ~{_elapsed:.0f}s (attempt {attempt}/{max_retries}), content_len={len(_content)}, reasoning_len={len(_reasoning)}, finish={finish_reason}")
                         if len(_content) == 0 and attempt < max_retries:
                             # NIM free-tier worker often emits empty content
                             # with populated reasoning on the 1st try and a
                             # proper content answer on the 2nd. Retry fast.
-                            print(f"   ⚠️  Empty content on attempt {attempt}. Retrying in {backoff_seconds}s...")
+                            self.log(f"   ⚠️  Empty content on attempt {attempt}. Retrying in {backoff_seconds}s...")
                             time.sleep(backoff_seconds)
                             backoff_seconds *= 2
                             continue
@@ -387,38 +399,38 @@ class AcadallyBot:
                         and attempt < max_retries
                         and (_is_soft or attempt < 3)
                     ):
-                        print(
+                        self.log(
                             f"   ⚠️  HTTP {response.status_code} on attempt {attempt}/{max_retries}. "
                             f"Waiting {backoff_seconds}s then retrying... ({response.text[:120]})"
                         )
                         time.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    print(f"❌ NVIDIA NIM API HTTP {response.status_code}: {response.text[:500]}")
+                    self.log(f"❌ NVIDIA NIM API HTTP {response.status_code}: {response.text[:500]}")
                     return None
                 except requests.exceptions.RequestException as e:
                     if attempt < max_retries:
-                        print(
+                        self.log(
                             f"   ⚠️  Network error on attempt {attempt}/{max_retries}: {e}. "
                             f"Waiting {backoff_seconds}s then retrying..."
                         )
                         time.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    print(f"❌ Network error calling NVIDIA NIM: {e}")
+                    self.log(f"❌ Network error calling NVIDIA NIM: {e}")
                     return None
             else:
-                print(f"❌ All {max_retries} API attempts failed.")
+                self.log(f"❌ All {max_retries} API attempts failed.")
                 return None
 
             if usage:
-                print(
+                self.log(
                     f"   📊 Usage: prompt_tokens={usage.get('prompt_tokens')}, "
                     f"completion_tokens={usage.get('completion_tokens')}, "
                     f"finish_reason={finish_reason}"
                 )
 
-            print(f"🤖 RAW content:   {repr(answer_text[:500])}")
+            self.log(f"🤖 RAW content:   {repr(answer_text[:500])}")
 
             answer_num = self._extract_answer_letter(answer_text)
             extraction_source = "content"
@@ -427,28 +439,28 @@ class AcadallyBot:
             # the NIM free tier sometimes hides the ONLY letter inside the
             # separate `message.reasoning` field. Try extracting there too.
             if answer_num is None and reasoning_text:
-                print(f"   ℹ️  content had no answer; trying reasoning field...")
+                self.log(f"   ℹ️  content had no answer; trying reasoning field...")
                 answer_num = self._extract_answer_letter(reasoning_text)
                 extraction_source = "reasoning (FALLBACK)"
 
             if answer_num is not None:
                 letter = chr(ord("A") + answer_num - 1)
-                print(f"✅ Extracted answer: Option {letter} (Number {answer_num}) from {extraction_source}")
+                self.log(f"✅ Extracted answer: Option {letter} (Number {answer_num}) from {extraction_source}")
                 return answer_num
 
-            print(f"❌ Could not extract valid A/B/C/D answer from response (content_len={len(answer_text)}, reasoning_len={len(reasoning_text)})")
+            self.log(f"❌ Could not extract valid A/B/C/D answer from response (content_len={len(answer_text)}, reasoning_len={len(reasoning_text)})")
             return None
 
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            print(f"❌ Error getting AI answer: {e}")
+            self.log(f"❌ Error getting AI answer: {e}")
             return None
     
     def select_answer_with_visual_feedback(self, option_number):
         """Select answer with multiple attempts and visual feedback check"""
         try:
-            print(f"🎯 Attempting to select option {option_number}")
+            self.log(f"🎯 Attempting to select option {option_number}")
             option_letter = chr(64 + option_number)  # 1->A, 2->B, etc.
             
             # Take a screenshot before selection to compare later
@@ -475,17 +487,17 @@ class AcadallyBot:
                     for method in click_methods:
                         try:
                             method()
-                            print(f"✅ Clicked input element {option_number}")
+                            self.log(f"✅ Clicked input element {option_number}")
                             time.sleep(0.5)
                             
                             # Check if input is now selected
                             if input_elem.get_attribute('checked'):
-                                print("✅ Selection confirmed - input is checked")
+                                self.log("✅ Selection confirmed - input is checked")
                                 return True
                         except:
                             continue
             except Exception as e:
-                print(f"Input method failed: {e}")
+                self.log(f"Input method failed: {e}")
             
             # Strategy 2: Look for elements with the option letter
             letter_patterns = [
@@ -504,7 +516,7 @@ class AcadallyBot:
                         if elem.is_displayed():
                             # Try clicking the element
                             self.driver.execute_script("arguments[0].click();", elem)
-                            print(f"✅ Clicked element with pattern: {pattern}")
+                            self.log(f"✅ Clicked element with pattern: {pattern}")
                             time.sleep(0.5)
                             
                             # Try to find if any parent element now has selected class
@@ -514,7 +526,7 @@ class AcadallyBot:
                                     parent = parent.find_element(By.XPATH, "..")
                                     classes = parent.get_attribute('class') or ''
                                     if 'selected' in classes.lower() or 'active' in classes.lower():
-                                        print("✅ Found 'selected' class on parent")
+                                        self.log("✅ Found 'selected' class on parent")
                                         return True
                                 except:
                                     break
@@ -522,7 +534,7 @@ class AcadallyBot:
                             # Check the element itself for selected class
                             elem_classes = elem.get_attribute('class') or ''
                             if 'selected' in elem_classes.lower() or 'active' in elem_classes.lower():
-                                print("✅ Found 'selected' class on element")
+                                self.log("✅ Found 'selected' class on element")
                                 return True
                 except:
                     continue
@@ -558,21 +570,21 @@ class AcadallyBot:
                     for method in click_points:
                         try:
                             method()
-                            print(f"✅ Clicked answer container {option_number}")
+                            self.log(f"✅ Clicked answer container {option_number}")
                             time.sleep(0.5)
                             
                             # Check container for selected state
                             container_classes = container.get_attribute('class') or ''
                             if 'selected' in container_classes.lower() or 'active' in container_classes.lower():
-                                print("✅ Container shows as selected")
+                                self.log("✅ Container shows as selected")
                                 return True
                         except:
                             continue
             except Exception as e:
-                print(f"Container method failed: {e}")
+                self.log(f"Container method failed: {e}")
             
             # Strategy 4: Try clicking by position (fallback)
-            print("⚠️ Trying positional click as last resort...")
+            self.log("⚠️ Trying positional click as last resort...")
             try:
                 # Find all interactive elements
                 interactive = self.driver.find_elements(By.CSS_SELECTOR, 
@@ -592,22 +604,22 @@ class AcadallyBot:
                 if option_number <= len(answer_candidates):
                     elem = answer_candidates[option_number-1]
                     self.driver.execute_script("arguments[0].click();", elem)
-                    print(f"✅ Positional click on element {option_number}")
+                    self.log(f"✅ Positional click on element {option_number}")
                     return True
             except Exception as e:
-                print(f"Positional click failed: {e}")
+                self.log(f"Positional click failed: {e}")
             
             # If we get here, ask user to verify
-            print("\n⚠️  WARNING: Cannot confirm if answer was selected!")
-            print("⚠️  Please check if option is selected in the browser.")
-            print("⚠️  If not selected, please click it manually.")
+            self.log("\n⚠️  WARNING: Cannot confirm if answer was selected!")
+            self.log("⚠️  Please check if option is selected in the browser.")
+            self.log("⚠️  If not selected, please click it manually.")
             time.sleep(2)  # Give user time to see the message
             
             # Continue anyway - user can manually correct if needed
             return True
             
         except Exception as e:
-            print(f"❌ Error selecting answer: {e}")
+            self.log(f"❌ Error selecting answer: {e}")
             return False
     
     def navigate_to_next(self):
@@ -631,7 +643,7 @@ class AcadallyBot:
                         EC.element_to_be_clickable((By.XPATH, xpath))
                     )
                     self.driver.execute_script("arguments[0].click();", button)
-                    print("✅ Clicked Next button")
+                    self.log("✅ Clicked Next button")
                     time.sleep(3)  # Wait for next question to load
                     return "next"
                 except:
@@ -653,16 +665,16 @@ class AcadallyBot:
                         EC.element_to_be_clickable((By.XPATH, xpath))
                     )
                     self.driver.execute_script("arguments[0].click();", button)
-                    print("🎉 Clicked Submit button - Quiz completed!")
+                    self.log("🎉 Clicked Submit button - Quiz completed!")
                     return "submit"
                 except:
                     continue
             
-            print("❌ Could not find Next/Submit button")
+            self.log("❌ Could not find Next/Submit button")
             return "unknown"
             
         except Exception as e:
-            print(f"Error navigating: {e}")
+            self.log(f"Error navigating: {e}")
             return "error"
     
     def handle_scrolling(self):
@@ -674,7 +686,7 @@ class AcadallyBot:
             self.driver.execute_script("window.scrollTo(0, 0);")
             time.sleep(0.5)
         except Exception as e:
-            print(f"Error handling scroll: {e}")
+            self.log(f"Error handling scroll: {e}")
     
     def check_if_quiz_ended(self):
         """Check if quiz has ended"""
@@ -691,7 +703,7 @@ class AcadallyBot:
             for xpath in end_indicators:
                 try:
                     if self.driver.find_element(By.XPATH, xpath):
-                        print("📊 Quiz appears to be completed!")
+                        self.log("📊 Quiz appears to be completed!")
                         return True
                 except:
                     continue
@@ -711,7 +723,7 @@ class AcadallyBot:
         Used only by All-Quizzes mode.  It uses DOM text rather than the
         unsupported Selenium CSS :has-text() pseudo-selector.
         """
-        print("   🛎️  Looking for post-Submit confirmation...")
+        self.log("   🛎️  Looking for post-Submit confirmation...")
         end_at = time.time() + timeout_s
         while time.time() < end_at:
             try:
@@ -756,11 +768,11 @@ class AcadallyBot:
             except Exception:
                 label = None
             if label:
-                print(f"   ✅ Clicked post-Submit confirmation: {label}")
+                self.log(f"   ✅ Clicked post-Submit confirmation: {label}")
                 time.sleep(1.0)
                 return True
             time.sleep(0.25)
-        print("   ⚠️  Post-Submit confirmation is not visible yet.")
+        self.log("   ⚠️  Post-Submit confirmation is not visible yet.")
         return False
 
     def wait_for_results_page_and_go_back(self, timeout_s=20):
@@ -791,15 +803,15 @@ class AcadallyBot:
             except Exception:
                 action = None
             if action == "continue":
-                print("   ▶️  Clicked Continue after submission")
+                self.log("   ▶️  Clicked Continue after submission")
                 time.sleep(0.8)
             elif action == "go to journey":
-                print("   🧭 Clicked Go to Journey and returned to the quest menu")
+                self.log("   🧭 Clicked Go to Journey and returned to the quest menu")
                 time.sleep(2)
                 return True
             else:
                 time.sleep(0.25)
-        print("   ⚠️  Go to Journey is not visible yet; remaining on the completion flow.")
+        self.log("   ⚠️  Go to Journey is not visible yet; remaining on the completion flow.")
         return False
 
     def find_and_click_next_quest_card(self):
@@ -1028,7 +1040,7 @@ class AcadallyBot:
                 ) or 1),
                 1,
             )
-            print(f"   📏 Page totalH≈{total_h}px; scanning {len(BANDS)} scroll bands to discover lazy-loaded quest icons…")
+            self.log(f"   📏 Page totalH≈{total_h}px; scanning {len(BANDS)} scroll bands to discover lazy-loaded quest icons…")
 
             for band_idx, pct in enumerate(BANDS):
                 target_y = int(total_h * pct)
@@ -1041,7 +1053,7 @@ class AcadallyBot:
 
                 sc = _do_scroll_to(target_y, label=f"band {band_idx+1}/{len(BANDS)} @{int(pct*100)}%")
                 moved = bool(sc.get("moved"))
-                print(
+                self.log(
                     f"      🎡 Pass {band_idx+1}/{len(BANDS)} [{int(pct*100)}%] → wanted y={target_y}, actual y={sc.get('after','?')} "
                     f"({'moved' if moved else 'NO-MOVE (maybe static page)'})"
                     + (f" err={sc.get('error')}" if sc.get("error") else "")
@@ -1084,7 +1096,7 @@ class AcadallyBot:
                         NEW_QUEST_SRC, PAUSED_QUEST_SRC, COMPLETED_SRC,
                     ) or []
                 except Exception as ex:
-                    print(f"      ⚠️  img snapshot failed ({_traceback_str(ex)}); skipping band {band_idx+1}")
+                    self.log(f"      ⚠️  img snapshot failed ({_traceback_str(ex)}); skipping band {band_idx+1}")
                     continue
 
                 added_in_band = 0
@@ -1097,7 +1109,7 @@ class AcadallyBot:
                     all_icons.append(d)
                     added_in_band += 1
                 bands_done += 1
-                print(f"      ➕ Found +{added_in_band} new eligible icons this band (total so far={len(all_icons)})")
+                self.log(f"      ➕ Found +{added_in_band} new eligible icons this band (total so far={len(all_icons)})")
                 # Short-circuit sweep if we already have ≥1 paused quest
                 # (paused is priority 0, we'd pick it anyway) OR ≥3 new.
                 paused_count = sum(
@@ -1105,7 +1117,7 @@ class AcadallyBot:
                     if int(x.get("priority") if x.get("priority") is not None else 9) == 0
                 )
                 if paused_count >= 1 or len(all_icons) >= 3:
-                    print(f"      ✂️  Early sweep stop ({paused_count} paused already visible)")
+                    self.log(f"      ✂️  Early sweep stop ({paused_count} paused already visible)")
                     break
 
             # =================================================================
@@ -1118,7 +1130,7 @@ class AcadallyBot:
                     int(ic.get("offsetTop") or 10**12),
                 )
             all_icons.sort(key=_sort_key)
-            print(
+            self.log(
                 f"   🏁 Sweep finished: {bands_done} bands, {len(all_icons)} distinct eligible icons "
                 f"(paused={sum(1 for x in all_icons if int(x.get('priority') if x.get('priority') is not None else 9)==0)}, new={sum(1 for x in all_icons if int(x.get('priority') if x.get('priority') is not None else 9)==1)})"
             )
@@ -1131,13 +1143,13 @@ class AcadallyBot:
             self._last_quest_click_status = "none"
 
             if not all_icons:
-                print("   ℹ️  No pe.svg / paused_icon.svg icons anywhere. Falling back to CSS heuristics.")
+                self.log("   ℹ️  No pe.svg / paused_icon.svg icons anywhere. Falling back to CSS heuristics.")
                 try:
                     fb_ok = bool(self._find_and_click_next_quest_card_fallback())
                     self._last_quest_click_status = "clicked" if fb_ok else "none"
                     return fb_ok
                 except Exception as fx:
-                    print(f"   ⚠️  Fallback finder crashed: {_traceback_str(fx)}")
+                    self.log(f"   ⚠️  Fallback finder crashed: {_traceback_str(fx)}")
                     self._last_quest_click_status = "none"
                     return False
 
@@ -1146,7 +1158,7 @@ class AcadallyBot:
             tgt_src = (target.get("src") or "").split("/")[-1]
             tgt_prio = int(target.get("priority") if target.get("priority") is not None else 1)
             expected_action = "Resume" if tgt_prio == 0 else "Start"
-            print(f"   🎯 Selected {tgt_src} (priority={'paused' if tgt_prio==0 else 'new'}) @ y≈{tgt_offset}px")
+            self.log(f"   🎯 Selected {tgt_src} (priority={'paused' if tgt_prio==0 else 'new'}) @ y≈{tgt_offset}px")
 
             # =================================================================
             # 3) DEFINITIVE JUMP TO SELECTED ICON.
@@ -1154,7 +1166,7 @@ class AcadallyBot:
             desired_jump = max(0, tgt_offset - vh // 2)
             desired_jump = min(desired_jump, max(0, total_h - vh))
             jump_res = _do_scroll_to(desired_jump, label=f"jump → {tgt_src}", timeout_extra=120)
-            print(
+            self.log(
                 f"      🛬 Jump: wanted {desired_jump}, got y={jump_res.get('after','?')}, "
                 f"moved={'YES' if jump_res.get('moved') else 'NO'}"
                 + (f"  err={jump_res.get('error')}" if jump_res.get("error") else "")
@@ -1395,7 +1407,7 @@ class AcadallyBot:
                     "paused_icon.svg" if tgt_prio == 0 else "pe.svg",
                     f"try-{click_try}",
                 )
-                print(
+                self.log(
                     f"   🖱️  Quest-card click {click_try}/3 → <{click_result.get('tag','?')}> "
                     f"({str(click_result.get('cls',''))[:60]}) via {click_result.get('method','?')}"
                 )
@@ -1406,25 +1418,25 @@ class AcadallyBot:
                 # generic CTAs elsewhere on the Journey page are not evidence.
                 if _expected_confirmation_is_visible(expected_action):
                     self._pending_quest_action = expected_action
-                    print(f"   ✅ Quest click CONFIRMED ({expected_action} confirmation is ready)")
+                    self.log(f"   ✅ Quest click CONFIRMED ({expected_action} confirmation is ready)")
                     self._last_quest_click_status = "clicked"
                     return True
 
                 if click_try < 3:
-                    print("   🔁 No state change yet; re-finding the quest in the fresh DOM and retrying...")
+                    self.log("   🔁 No state change yet; re-finding the quest in the fresh DOM and retrying...")
                     time.sleep(0.8)
 
             # =================================================================
             # 5) LAST RESORT: use the other discovered quests, but ALWAYS
             #    re-find them by source + Y. Never reuse their old DOM index.
             # =================================================================
-            print("   ⚠️  Primary quest-card click had no visible effect; trying fallback icons...")
+            self.log("   ⚠️  Primary quest-card click had no visible effect; trying fallback icons...")
             for fb_idx, fb in enumerate(all_icons[1:3], start=1):
                 fb_off = int(fb.get("offsetTop") or 0)
                 fb_prio = int(fb.get("priority") if fb.get("priority") is not None else 1)
                 fb_src = "paused_icon.svg" if fb_prio == 0 else "pe.svg"
                 fb_label = (fb.get("src") or "").split("/")[-1]
-                print(f"   🔁 Fallback #{fb_idx}: {fb_label} near y={fb_off}")
+                self.log(f"   🔁 Fallback #{fb_idx}: {fb_label} near y={fb_off}")
                 try:
                     _do_scroll_to(max(0, fb_off - vh // 2), label=f"fallback-jump-{fb_idx}")
                     time.sleep(1.0)
@@ -1434,25 +1446,25 @@ class AcadallyBot:
                 for retry in range(1, 3):
                     try:
                         fb_result = _click_fresh_quest(fb_off, fb_prio, fb_src, f"fallback-{fb_idx}-{retry}")
-                        print(
+                        self.log(
                             f"      🖱️  Fallback click {retry}/2 → <{fb_result.get('tag','?')}> "
                             f"({str(fb_result.get('cls',''))[:60]}) via {fb_result.get('method','?')}"
                         )
                     except Exception as fx:
-                        print(f"      ⚠️  fallback {fb_idx} click failed: {_traceback_str(fx)}")
+                        self.log(f"      ⚠️  fallback {fb_idx} click failed: {_traceback_str(fx)}")
                     time.sleep(1.2)
                     fb_action = "Resume" if fb_prio == 0 else "Start"
                     if _expected_confirmation_is_visible(fb_action):
                         self._pending_quest_action = fb_action
-                        print(f"   ✅ Fallback quest click CONFIRMED ({fb_action} confirmation is ready)")
+                        self.log(f"   ✅ Fallback quest click CONFIRMED ({fb_action} confirmation is ready)")
                         self._last_quest_click_status = "clicked"
                         return True
 
-            print("   ❌ Could not get any quest card to respond to a click this iteration.")
+            self.log("   ❌ Could not get any quest card to respond to a click this iteration.")
             self._last_quest_click_status = "found_failed"
             return False
         except Exception as big_ex:
-            print(f"   💥 EXCEPTION inside find_and_click_next_quest_card: {_traceback_str(big_ex)}")
+            self.log(f"   💥 EXCEPTION inside find_and_click_next_quest_card: {_traceback_str(big_ex)}")
             self._last_quest_click_status = "found_failed" if all_icons else "none"
             return False
 
@@ -1487,7 +1499,7 @@ class AcadallyBot:
             except Exception:
                 pass
         if not cards:
-            print("   ℹ️  No quest cards found via fallback CSS selectors either.")
+            self.log("   ℹ️  No quest cards found via fallback CSS selectors either.")
             return False
 
         def card_score(el):
@@ -1518,7 +1530,7 @@ class AcadallyBot:
         scored.sort(key=lambda x: x[0], reverse=True)
         top_score, top_card = scored[0]
         if top_score < 0:
-            print("   ✅ All quest cards appear completed/locked. Nothing left to run.")
+            self.log("   ✅ All quest cards appear completed/locked. Nothing left to run.")
             return False
 
         cta_css_list = [
@@ -1539,7 +1551,7 @@ class AcadallyBot:
                 for el in top_card.find_elements(By.CSS_SELECTOR, css):
                     if el.is_displayed() and el.is_enabled():
                         self.driver.execute_script("arguments[0].click();", el)
-                        print(f"   🎯 Clicked quest CTA (fallback) via CSS: {css}")
+                        self.log(f"   🎯 Clicked quest CTA (fallback) via CSS: {css}")
                         clicked = True
                         break
             except Exception:
@@ -1549,7 +1561,7 @@ class AcadallyBot:
         if not clicked:
             try:
                 self.driver.execute_script("arguments[0].click();", top_card)
-                print("   🎯 Clicked quest card directly (fallback)")
+                self.log("   🎯 Clicked quest card directly (fallback)")
                 clicked = True
             except Exception:
                 pass
@@ -1568,7 +1580,7 @@ class AcadallyBot:
         """
         expected = getattr(self, "_pending_quest_action", None)
         if expected not in ("Start", "Resume"):
-            print("   ⚠️  No selected-quest confirmation action was recorded.")
+            self.log("   ⚠️  No selected-quest confirmation action was recorded.")
             return False
 
         required_classes = [
@@ -1579,7 +1591,7 @@ class AcadallyBot:
             "disabled:opacity-50", "disabled:cursor-not-allowed",
             "transition-colors", "duration-200",
         ]
-        print(f"   🛎️  Clicking selected quest confirmation: {expected}")
+        self.log(f"   🛎️  Clicking selected quest confirmation: {expected}")
         end_at = time.time() + timeout_s
         while time.time() < end_at:
             try:
@@ -1624,11 +1636,11 @@ class AcadallyBot:
                 clicked = {}
             if clicked.get("ok"):
                 self._pending_quest_action = None
-                print(f"   ▶️  Clicked selected quest confirmation: {clicked.get('label')}")
+                self.log(f"   ▶️  Clicked selected quest confirmation: {clicked.get('label')}")
                 time.sleep(1.0)
                 return True
             time.sleep(0.25)
-        print(f"   ⚠️  Could not identify the {expected} confirmation button yet; keeping the current quest open and retrying.")
+        self.log(f"   ⚠️  Could not identify the {expected} confirmation button yet; keeping the current quest open and retrying.")
         return False
 
     def wait_until_on_first_question(self, timeout_s=25):
@@ -1681,106 +1693,133 @@ class AcadallyBot:
         # waiting on that same post-submit popup until its positive action is
         # clicked; do not move back through browser history.
         while not self.confirm_submit_popup():
-            print("⚠️  Submit confirmation cannot be identified yet; retrying the current quiz.")
+            self.log("⚠️  Submit confirmation cannot be identified yet; retrying the current quiz.")
             time.sleep(1.0)
         # 3) Acadally may show Continue first, or Go to Journey directly.
         # Stay on this completion flow until Go to Journey is clicked.
         while not self.wait_for_results_page_and_go_back():
-            print("⚠️  Go to Journey is not visible yet; waiting on the completion flow.")
+            self.log("⚠️  Go to Journey is not visible yet; waiting on the completion flow.")
             time.sleep(1.0)
         return True
 
-    def run_quiz_automation(self):
+    def run_quiz_automation(self, stop_event=None):
         """Main quiz automation loop"""
         try:
-            print("\n🚀 Starting quiz automation...")
+            self.log("\n🚀 Starting quiz automation...")
             
             question_count = 0
             max_questions = 30  # Safety limit
             
             while question_count < max_questions:
+                if stop_event is not None and stop_event.is_set():
+                    self.log("⏹️ Automation stopped by user.")
+                    break
                 question_count += 1
-                print(f"\n{'='*40}")
-                print(f"📝 QUESTION {question_count}")
-                print(f"{'='*40}")
+                self.log(f"\n{'='*40}")
+                self.log(f"📝 QUESTION {question_count}")
+                self.log(f"{'='*40}")
                 
                 # Handle scrolling
                 self.handle_scrolling()
                 
                 # Check if quiz ended
                 if self.check_if_quiz_ended():
-                    print("🎉 Quiz completed successfully!")
+                    self.log("🎉 Quiz completed successfully!")
                     break
                 
                 # Take in-memory-only screenshot (no files written to disk)
                 screenshot_bytes = self.take_question_screenshot()
                 
                 if not screenshot_bytes:
-                    print("❌ Failed to take screenshot")
+                    self.log("❌ Failed to take screenshot")
                     break
                 
                 # Get AI answer via multimodal API
                 correct_option = self.get_ai_answer_from_screenshot(screenshot_bytes)
                 
                 if correct_option is None:
-                    print("\n❌ Could not extract valid A/B/C/D answer from AI response")
-                    print("❌ Stopping on this question. Please answer manually to continue.")
-                    input("\nPress Enter after manually answering this question to continue...")
-                    print("➡️ Attempting to navigate to next question after manual answer...")
-                    result = self.navigate_to_next()
-                    if result == "submit":
-                        print("🎉 Quiz submitted successfully!")
-                        break
-                    elif result == "next":
-                        print("⏳ Waiting for next question to load...")
-                        time.sleep(4)
-                        continue
-                    else:
-                        print("❌ Could not navigate. Manual intervention needed.")
-                        break
+                    self.log("❌ Could not extract valid A/B/C/D answer from AI response")
+                    self.log("⚠️ AI failed. Manual intervention needed on the current question.")
+                    break
                 
-                print(f"🎯 Final decision: Option {correct_option} (Letter {chr(64 + correct_option)})")
+                self.log(f"🎯 Final decision: Option {correct_option} (Letter {chr(64 + correct_option)})")
                 
                 # Select answer with visual feedback check
                 if self.select_answer_with_visual_feedback(correct_option):
-                    print("✅ Answer selection attempted")
+                    self.log("✅ Answer selection attempted")
                 else:
-                    print("⚠️ Failed to select answer")
+                    self.log("⚠️ Failed to select answer")
                 
                 time.sleep(1.5)  # Give UI time to update
                 
                 # Navigate to next question
-                print("➡️ Navigating to next question...")
+                self.log("➡️ Navigating to next question...")
                 result = self.navigate_to_next()
                 
                 if result == "submit":
-                    print("🎉 Quiz submitted successfully!")
+                    self.log("🎉 Quiz submitted successfully!")
                     break
                 elif result == "unknown":
-                    print("🤔 Could not find navigation button. Checking if quiz ended...")
+                    self.log("🤔 Could not find navigation button. Checking if quiz ended...")
                     if self.check_if_quiz_ended():
-                        print("🎉 Quiz completed!")
+                        self.log("🎉 Quiz completed!")
                         break
                     else:
-                        print("❌ Stuck on question. Manual intervention needed.")
+                        self.log("❌ Stuck on question. Manual intervention needed.")
                         break
                 
                 # Wait for next question to load
-                print("⏳ Waiting for next question to load...")
+                self.log("⏳ Waiting for next question to load...")
                 time.sleep(4)
                 
-            print(f"\n✅ Completed {question_count} questions")
+            self.log(f"\n✅ Completed {question_count} questions")
             
         except Exception as e:
-            print(f"❌ Error in quiz automation: {e}")
+            self.log(f"❌ Error in quiz automation: {e}")
         finally:
-            print("\n📊 Bot session ended. You can close the browser manually.")
+            self.log("\n📊 Bot session ended. You can close the browser manually.")
 
 # Configuration - ADD YOUR NVIDIA API KEY HERE
 # Get a key from https://build.nvidia.com/
 # Important - ADD API KEY OR IT WON'T WORK
 # ADD IT HERE ⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️
 NVIDIA_API_KEY = ""
+
+# Settings saved from the GUI (API key + operation mode) are persisted in an
+# INI file next to this script so they survive restarts.
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.ini")
+DEFAULT_OPERATION_MODE = "Single Quiz"
+
+
+def save_settings(api_key, operation_mode):
+    """Persist the API key and operation mode to config.ini."""
+    config = configparser.ConfigParser()
+    config["settings"] = {
+        "nvidia_api_key": api_key or "",
+        "operation_mode": operation_mode or DEFAULT_OPERATION_MODE,
+    }
+    with open(SETTINGS_FILE, "w") as f:
+        config.write(f)
+
+
+def load_settings():
+    """Return (api_key, operation_mode) from config.ini, with safe defaults."""
+    if not os.path.exists(SETTINGS_FILE):
+        return "", DEFAULT_OPERATION_MODE
+
+    config = configparser.ConfigParser()
+    try:
+        config.read(SETTINGS_FILE)
+    except configparser.Error:
+        return "", DEFAULT_OPERATION_MODE
+
+    if not config.has_section("settings"):
+        return "", DEFAULT_OPERATION_MODE
+
+    return (
+        config.get("settings", "nvidia_api_key", fallback=""),
+        config.get("settings", "operation_mode", fallback=DEFAULT_OPERATION_MODE),
+    )
 
 def prompt_mode():
     """First-run mandatory choice: single quiz, or all available quizzes.
@@ -1927,11 +1966,11 @@ def main():
     print("🚀 ACADALLY QUIZ BOT (NVIDIA NIM)")
     print("=" * 50)
 
-    mode = prompt_mode()
+    api_key, mode = load_settings()
     print(f"ℹ️  Selected mode: {'[1] One Quiz Only' if mode == '1' else '[2] Complete All Quizzes'}")
 
     # Initialize bot
-    bot = AcadallyBot(NVIDIA_API_KEY)
+    bot = AcadallyBot(api_key)                                              
 
     # Setup driver and open Acadally
     print("🌐 Launching browser and opening Acadally...")
