@@ -70,8 +70,7 @@ project.
 
 Run:
 
-python gui_app.py
-
+Run the .exe File
 
 NVIDIA NIM VERSION 2.0
 

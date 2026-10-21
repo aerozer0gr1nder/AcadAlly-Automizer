@@ -5,3 +5,6 @@ Voice Command/
 conversations/
 remote-profile/
 config.ini
+AcadAlly_Automizer.spec
+build/
+dist/
