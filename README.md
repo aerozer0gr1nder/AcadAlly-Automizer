@@ -7,7 +7,7 @@
 **A Bot Coded In Python to Automatically do the AcadAlly Quizzes. Created with the help of AI. Specifically Made For DPS Patna Students**
 
 
-
+[![pypresence](https://img.shields.io/badge/using-pypresence-00bb88.svg?style=for-the-badge&logo=discord&logoWidth=20)](https://github.com/qwertyquerty/pypresence)
 
 
 ✨ Features
