@@ -43,7 +43,7 @@ https://aerozer0grinder.netlify.app
 
 ***Remember: Use your own API key! Don't ask for mine.***
 
-[![pypresence](https://img.shields.io/badge/using-pypresence-00bb88.svg?style=for-the-badge&logo=discord&logoWidth=20)](https://github.com/qwertyquerty/pypresence)
+
 
 **See tutorial.txt for more details. 😄**
 
@@ -51,3 +51,5 @@ https://aerozer0grinder.netlify.app
 
 This readme.md is made using AI.
 
+
+[![pypresence](https://img.shields.io/badge/using-pypresence-00bb88.svg?style=for-the-badge&logo=discord&logoWidth=20)](https://github.com/qwertyquerty/pypresence)
